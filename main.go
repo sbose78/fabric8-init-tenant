@@ -162,6 +162,8 @@ func main() {
 	statusCtrl := controller.NewStatusController(service, db)
 	app.MountStatusController(service, statusCtrl)
 
+	clusterTokenService := tokens.NewClusterTokenClient(....) // initialize the structure.
+
 	// Mount "tenant" controller
 	witURL := config.GetWitURL()
 	tenantService := tenant.NewDBService(db)

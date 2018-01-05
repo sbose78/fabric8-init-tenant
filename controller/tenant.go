@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bitly/go-simplejson"
 	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/fabric8-services/fabric8-tenant/app"
 	"github.com/fabric8-services/fabric8-tenant/jsonapi"
@@ -25,23 +24,27 @@ import (
 // TenantController implements the status resource.
 type TenantController struct {
 	*goa.Controller
-	tenantService   tenant.Service
-	keycloakConfig  keycloak.Config
-	openshiftConfig openshift.Config
-	templateVars    map[string]string
-	usersURL        string
+	tenantService       tenant.Service
+	keycloakConfig      keycloak.Config
+	openshiftConfig     openshift.Config
+	templateVars        map[string]string
+	usersURL            string
+	clusterTokenService tokens.ClusterTokenService
 }
 
 // NewTenantController creates a status controller.
-func NewTenantController(service *goa.Service, tenantService tenant.Service, keycloakConfig keycloak.Config, openshiftConfig openshift.Config, templateVars map[string]string, usersURL string) *TenantController {
+func NewTenantController(service *goa.Service, tenantService tenant.Service, keycloakConfig keycloak.Config, templateVars map[string]string, usersURL string) *TenantController {
 	return &TenantController{
-		Controller:      service.NewController("TenantController"),
-		tenantService:   tenantService,
-		keycloakConfig:  keycloakConfig,
-		openshiftConfig: openshiftConfig,
-		templateVars:    templateVars,
-		usersURL:        usersURL,
+		Controller:     service.NewController("TenantController"),
+		tenantService:  tenantService,
+		keycloakConfig: keycloakConfig,
+		templateVars:   templateVars,
+		usersURL:       usersURL,
 	}
+}
+
+func (c *TenantController) setupOpenShiftConfig(ctx *app.SetupTenantContext) openshiftConfig {
+
 }
 
 // Setup runs the setup action.
@@ -54,6 +57,23 @@ func (c *TenantController) Setup(ctx *app.SetupTenantContext) error {
 	exists := c.tenantService.Exists(ttoken.Subject())
 	if exists {
 		return ctx.Conflict()
+	}
+
+	// 1. Call User service to get user's info which would include cluster.
+
+	// 2. Call ClusterTokenService to get the cluster token
+
+	clusterToken := c.clusterTokenService.Get(cluster_url)
+
+	openshiftConfig := openshift.Config{
+		MasterURL:      config.GetOpenshiftTenantMasterURL(), // from user service.
+		ConsoleURL:     config.GetConsoleURL(),               // something to do with cluster console url
+		Token:          clusterToken,                         // cluster token returned by auth service.
+		HttpTransport:  tr,
+		CheVersion:     config.GetOpenshiftCheVersion(),
+		JenkinsVersion: config.GetOpenshiftJenkinsVersion(),
+		TeamVersion:    config.GetOpenshiftTeamVersion(),
+		TemplateDir:    config.GetOpenshiftTemplateDir(),
 	}
 
 	openshiftUserToken, err := OpenshiftToken(c.keycloakConfig, c.openshiftConfig, token)
